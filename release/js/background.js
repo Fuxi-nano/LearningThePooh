@@ -8,7 +8,7 @@ let isMobile = !!(/Mobile/.exec(navigator.userAgent));
 let urlMap = {
     "index": "https://www.xuexi.cn",
     "points": "https://pc.xuexi.cn/points/my-points.html",
-    "scoreApi": "https://pc-api.xuexi.cn/open/api/score/today/queryrate",
+    "scoreApi": "https://pc-proxy-api.xuexi.cn/api/score/days/listScoreProgress?sence=score&deviceType=2",
     "channelApi": "https://www.xuexi.cn/lgdata/"
 };
 let channel = {
@@ -39,6 +39,7 @@ let channel = {
     'video': [
         "1novbsbi47k|https://www.xuexi.cn/a191dbc3067d516c3e2e17e2e08953d6/b87d700beee2c44826a9202c75d18c85.html",
         "1742g60067k|https://www.xuexi.cn/0b99b2eb0a13e4501cbaf82a5c37a853/b87d700beee2c44826a9202c75d18c85.html",
+        "3jsf4shrl928|https://www.xuexi.cn/4426aa87b0b64ac671c96379a3a8bd26/db086044562a57b441c24f2af1c8e101.html#xTq8qvH9e4",
         "1novbsbi47k|https://www.xuexi.cn/4426aa87b0b64ac671c96379a3a8bd26/db086044562a57b441c24f2af1c8e101.html#1novbsbi47k-5",
         "1koo357ronk|https://www.xuexi.cn/4426aa87b0b64ac671c96379a3a8bd26/db086044562a57b441c24f2af1c8e101.html#1koo357ronk-5",
         "1742g60067k|https://www.xuexi.cn/4426aa87b0b64ac671c96379a3a8bd26/db086044562a57b441c24f2af1c8e101.html#1742g60067k-5",
@@ -62,13 +63,19 @@ function getPointsData(callback) {
                 if (res.hasOwnProperty("code") && parseInt(res.code) === 200) {
                     if (checkScoreAPI(res)) {
                         let points = 0;
-                        let ruleList = [1, 2, 9, 1002, 1003];
-                        for (let key in res.data.dayScoreDtos) {
-                            if (!res.data.dayScoreDtos.hasOwnProperty(key)) {
+                        let ruleList = ['1', '2', '9', '1002', '1003'];
+                        for (let key in res.data.taskProgress) {
+                            if (!res.data.taskProgress.hasOwnProperty(key)) {
                                 continue;
                             }
-                            if (ruleList.indexOf(res.data.dayScoreDtos[key].ruleId) !== -1) {
-                                points += res.data.dayScoreDtos[key].currentScore;
+                            let isTask=false;
+                            for (let task in res.data.taskProgress[key].taskCode) {
+                                if (ruleList.indexOf(res.data.taskProgress[key].taskCode[task]) !== -1) {
+                                    isTask=true;
+                                }
+                            }
+                            if (isTask) {
+                                points += res.data.taskProgress[key].currentScore;
                             }
                         }
                         if (!isMobile) {
@@ -98,20 +105,26 @@ function getPointsData(callback) {
 //检查积分接口数据结构
 function checkScoreAPI(res) {
     if (res.hasOwnProperty("data")) {
-        if (res.data.hasOwnProperty("dayScoreDtos")) {
+        if (res.data.hasOwnProperty("taskProgress")) {
             let pass = 0;
-            let ruleList = [1, 2, 9, 1002, 1003];
-            for (let key in res.data.dayScoreDtos) {
-                if (!res.data.dayScoreDtos.hasOwnProperty(key)) {
+            let ruleList = ['1', '2', '9', '1002', '1003'];
+            for (let key in res.data.taskProgress) {
+                if (!res.data.taskProgress.hasOwnProperty(key)) {
                     continue;
                 }
-                if (res.data.dayScoreDtos[key].hasOwnProperty("ruleId") && res.data.dayScoreDtos[key].hasOwnProperty("currentScore") && res.data.dayScoreDtos[key].hasOwnProperty("dayMaxScore")) {
-                    if (ruleList.indexOf(res.data.dayScoreDtos[key].ruleId) !== -1) {
+                if (res.data.taskProgress[key].hasOwnProperty("taskCode") && res.data.taskProgress[key].hasOwnProperty("currentScore") && res.data.taskProgress[key].hasOwnProperty("dayMaxScore")) {
+                    let isTask=false;
+                    for (let task in res.data.taskProgress[key].taskCode) {
+                        if (ruleList.indexOf(res.data.taskProgress[key].taskCode[task]) !== -1) {
+                            isTask=true
+                        }
+                    }
+                    if(isTask){
                         ++pass;
                     }
                 }
             }
-            if (pass === 5) {
+            if (pass === 4) {
                 return true;
             }
         }
@@ -200,34 +213,36 @@ function autoEarnPoints(timeout) {
     let newTime = 0;
     setTimeout(function () {
         getPointsData(function (data) {
-            let score = data.dayScoreDtos;
+            let score = data.taskProgress;
             let type;
-
             for (let key in score) {
                 if (!score.hasOwnProperty(key)) {
                     continue;
                 }
-                switch (score[key].ruleId) {
-                    case 1:
-                    case 1002:
-                        if (score[key].currentScore < score[key].dayMaxScore) {
-                            type = "article";
-                            newTime = 35 * 1000 + Math.floor(Math.random() * 150 * 1000);
-                        }
-                        break;
-                    case 2:
-                    case 1003:
-                        if (score[key].currentScore < score[key].dayMaxScore) {
-                            type = "video";
-                            newTime = 125 * 1000 + Math.floor(Math.random() * 120 * 1000);
-                        }
-                        break;
+                for (let task in score[key].taskCode) {
+                    let rule=score[key].taskCode[task]
+                    
+                    switch (rule) {
+                        case '1':
+                        case '1002':
+                            if (score[key].currentScore < score[key].dayMaxScore) {
+                                type = "article";
+                                newTime = 60 * 1000 + Math.floor(Math.random() * 10 * 1000);
+                            }
+                            break;
+                        case '2':
+                        case '1003':
+                            if (score[key].currentScore < score[key].dayMaxScore) {
+                                type = "video";
+                                newTime = 60 * 1000 + Math.floor(Math.random() * 10 * 1000);
+                            }
+                            break;
+                    }
                 }
                 if (type) {
                     break;
                 }
             }
-
             if (type && channelUrls[type].length) {
                 url = channelUrls[type].shift();
             }
